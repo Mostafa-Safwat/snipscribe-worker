@@ -175,3 +175,4 @@ cython_debug/
 *.m4v
 *.mpg
 *.mpeg
+youtube_downloads/

@@ -58,18 +58,17 @@ def create_folder():
 def pytube_downloader(url, path):
     print("Downloading...")
     title = ''
-    yt = YouTube(url, 'WEB', use_oauth=True)
+    yt = YouTube(url, 'WEB')
     ys = yt.streams.get_audio_only()
-    ys.download(path)
+    audio_file = ys.download(path)
     title = yt.title
 
-    return title
+    return title, audio_file
 
 # Function to transcribe the audio files using Whisper
-def transcribe_text(title, path):
+def transcribe_text(audio_file):
     print("Transcribing...")
     transcription = ''
-    audio_file = os.path.join(path, f"{title}.m4a")
     try:
         model = whisper.load_model("large", device="cuda")
         result = model.transcribe(audio_file)
@@ -148,6 +147,14 @@ def save_summary(id, summary, title):
         'UPDATE "summaries" SET status = %s, body = %s, title = %s WHERE id = %s',
         ('COMPLETED', summary, title, id)
     )
+    cursor.execute(
+        '''INSERT INTO "notifications" (user_id, summary_id)
+           SELECT sr.user_id, s.id FROM "summaries" s
+           JOIN "summary_requests" sr ON sr.id = s.summary_request_id
+           WHERE s.id = %s
+           ON CONFLICT (summary_id) DO NOTHING''',
+        (id,)
+    )
     conn.commit()
     cursor.close()
     conn.close()
@@ -160,8 +167,8 @@ if __name__ == "__main__":
             url = result['video']['url']
             id = result['summary']['id']
             language = result['language']
-            title = pytube_downloader(url, path)
-            transcription = transcribe_text(title, path)
+            title, audio_file = pytube_downloader(url, path)
+            transcription = transcribe_text(audio_file)
             summary = summarize_text(transcription, language)
             save_summary(id, summary, title)
         else:
